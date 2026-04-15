@@ -13,3 +13,8 @@ dependencies = [
 dev = [
     "ipykernel>=6.30.0",
 ]
+
+[tool.uv.workspace]
+members = [
+    "opeanai-agents-sdk",
+]

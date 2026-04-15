@@ -2,21 +2,41 @@ from dotenv import load_dotenv
 from pathlib import Path
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from openai import OpenAI
 import asyncio
 import streamlit as st
-from agents import Agent, Runner, SQLiteSession, WebSearchTool
+from agents import Agent, Runner, SQLiteSession, WebSearchTool, FileSearchTool
+
+client = OpenAI()
+
+VECTOR_STORE_ID = "vs_69dfab66a8fc8191baa892edfdf67229"
 
 if "agent" not in st.session_state:
     st.session_state["agent"] = Agent(
         name="ChatGPT Clone",
         instructions="""
-        You are a helpful life coach. You always gather information through web searches before giving advice.
+        You are a helpful life coach.
+
+        Tool usage rules:
+        - DO NOT use any tools for simple greetings, casual conversation, or small talk (e.g., "hi", "hello", "how are you").
+        - Use Web Search when the user asks about:
+        - prices, recommendations, places, trends, or general knowledge
+        - anything that may require up-to-date or external information
+        - Use File Search only when the question is clearly about the user's personal data or uploaded files.
+        - If both are useful, use File Search first, then Web Search.
 
         You have access to the following tools:
-            - Web Search Tool: Use this when the user asks a questions. Use this to learn about current evetns.
+            - Web Search Tool: Use this when the user asks some information.
+            - File Search Tool: Use this tool when the user asks a question about facts related to themselves. Or when they ask questions about specific files.
         """,
         tools=[
             WebSearchTool(),
+            FileSearchTool(
+                vector_store_ids=[
+                    VECTOR_STORE_ID
+                ],
+                max_num_results=3,
+            ),
         ]
     )
 
@@ -47,6 +67,10 @@ def update_status(status_container, event):
         "response.web_search_call.completed": ("Web search completed.", "complete"),
         "response.web_search_call.searching": ("Web search in progress...", "running"),
         "response.web_search_call.in_progress": ("Starting web search...", "running"),
+
+        "response.file_search_call.completed": ("File search completed.", "complete"),
+        "response.file_search_call.searching": ("File search in progress...", "running"),
+        "response.file_search_call.in_progress": ("Starting file search...", "running"),
 
         "response.completed": ("", "complete")
 
@@ -86,9 +110,30 @@ with st.sidebar:
         asyncio.run(session.clear_session())
     st.write(asyncio.run(session.get_items()))
 
-prompt = st.chat_input("Write a meessage")
+prompt = st.chat_input("Write a meessage",
+                       accept_file=True,
+                       file_type=["txt"]
+                       )
 
 if prompt:
-    with st.chat_message("human"):
-        st.write(prompt)
-    asyncio.run(run_agent(prompt))
+
+    for file in prompt.files:
+        if file.type.startswith("text/"):
+            with st.chat_message("ai"):
+                with st.status("⏳ Uploadking file...") as status:
+                    uploaded_file = client.files.create(
+                        file=(file.name, file.getvalue()),
+                        purpose="user_data"
+                    )
+                    status.update(label="⏳ Attaching file...")
+                    client.vector_stores.files.create(
+                        vector_store_id=VECTOR_STORE_ID,
+                        file_id=uploaded_file.id
+                    )
+                    status.update(label="✅ File uploaded", state="complete")
+
+
+    if prompt.text:
+        with st.chat_message("human"):
+            st.write(prompt.text)
+        asyncio.run(run_agent(prompt.text))
