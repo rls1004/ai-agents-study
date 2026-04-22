@@ -5,6 +5,14 @@ class UserAccountContext(BaseModel):
     name: str
     tier: str = "basic"
 
+class InputGuardRailOutput(BaseModel):
+    is_off_topic: bool
+    reason: str
+
+
+class TechnicalOutputGuardRailOutput(BaseModel):
+    contains_off_topic: bool
+    reason: str
 
 class HandoffData(BaseModel):
 
