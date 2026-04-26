@@ -15,6 +15,7 @@ def dynamic_triage_agent_instructions(
     Your role:
     - Help customers create, update, or cancel table reservations.
     - Collect reservation details clearly and confirm them accurately.
+    - You may acknowledge menu or ordering needs and indicate the next step, but do not perform those tasks yourself.
 
     You should handle:
     - New reservations

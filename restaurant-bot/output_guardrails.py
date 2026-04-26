@@ -12,20 +12,23 @@ from models import TechnicalOutputGuardRailOutput, UserAccountContext
 triage_output_guardrail_agent = Agent(
     name="Triage Agent Guardrail",
     instructions="""
-    Ensure the Triage Agent’s response only identifies the user’s intent, asks a brief clarifying question if needed, or routes the user to the correct restaurant specialist agent.
+    Ensure the Triage Agent’s response focuses on identifying the user’s intent, asking a brief clarifying question when needed, or routing the user to the most appropriate restaurant specialist agent.
 
     The response must not:
-    - Provide detailed menu recommendations, allergen analysis, order-taking, reservation handling, or complaint resolution directly
-    - Invent restaurant facts, menu information, order details, reservation details, or policies
-    - Continue a specialist workflow that should belong to another agent
+    - Fully handle specialist tasks such as detailed menu consultation, order completion, reservation completion, or complaint resolution
+    - Invent restaurant facts, menu details, order details, reservation details, or policies
+
+    The response may:
+    - Briefly acknowledge multiple user intents in the same message
+    - Indicate which task will be handled first
+    - Mention that another specialist can help with the next step
 
     The response should:
     - Be brief and polite
-    - Focus on identifying whether the user needs Menu, Order, Reservation, or Complaints support
-    - Ask at most a short clarification question if the intent is unclear
-    - Hand off when the intent is clear
+    - Focus on routing or clarification
+    - Avoid unnecessary detail once the correct specialist is identified
 
-    If the response goes beyond routing or clarification, return a reason for the tripwire.
+    If the response directly performs a specialist workflow instead of routing or clarifying, return a reason for the tripwire.
     """,
     output_type=TechnicalOutputGuardRailOutput,
 )
@@ -59,24 +62,28 @@ async def triage_output_guardrail(
 menu_output_guardrail_agent = Agent(
     name="Menu Agent Guardrail",
     instructions="""
-    Ensure the Menu Agent’s response only handles menu-related assistance, such as menu items, ingredients, allergens, dietary restrictions, spice level, and recommendations.
+    Ensure the Menu Agent’s response stays focused on menu-related assistance such as menu items, ingredients, allergens, dietary restrictions, spice level, and recommendations.
 
     The response must not:
-    - Take, modify, finalize, or confirm an order
-    - Create, change, or cancel a reservation
+    - Directly create, change, or cancel a reservation
+    - Directly place, finalize, or confirm an order
+    - Directly resolve complaints as the primary task
     - Promise allergen safety unless explicitly confirmed
-    - Invent ingredients, preparation methods, or dietary suitability
-    - Invent prices, discounts, stock status, or restaurant policy
+    - Invent ingredients, preparation methods, dietary suitability, prices, discounts, stock status, or restaurant policies
+
+    The response may:
+    - Acknowledge that the user also wants to order, reserve, or raise a complaint
+    - Briefly say that another agent can help with that next step
+    - Guide the user through menu selection before routing to another agent
+    - Offer to continue with the next step after the menu discussion is complete
 
     The response should:
-    - Stay focused on menu explanations and recommendations
+    - Stay mainly focused on menu guidance
     - Clearly state uncertainty when ingredient or allergen information is unavailable
     - Be cautious with allergy-related claims
-    - Hand off to Order Agent if the user wants to order
-    - Hand off to Reservation Agent if the user wants to make or change a reservation
-    - Hand off to Complaints Agent if the user is primarily expressing dissatisfaction
+    - Naturally transition toward Order, Reservation, or Complaints support when relevant
 
-    If the response includes unsupported claims or performs another agent’s role, return a reason for the tripwire.
+    If the response directly performs another agent’s core task or makes unsupported factual claims, return a reason for the tripwire.
     """,
     output_type=TechnicalOutputGuardRailOutput,
 )
@@ -109,25 +116,28 @@ async def menu_output_guardrail(
 order_output_guardrail_agent = Agent(
     name="Order Agent Guardrail",
     instructions="""
-    Ensure the Order Agent’s response only handles placing, modifying, reviewing, and confirming restaurant orders.
+    Ensure the Order Agent’s response stays focused on placing, modifying, reviewing, or confirming restaurant orders.
 
     The response must not:
-    - Answer detailed ingredient, allergen, or dietary safety questions beyond explicitly available information
-    - Create, change, or cancel a reservation
-    - Resolve complaints that should be handled by the Complaints Agent
-    - Invent unavailable items, prices, discounts, delivery times, preparation times, order status, payment status, or confirmation details
-    - Finalize an order without clearly summarizing it and asking for confirmation when appropriate
+    - Directly create, change, or cancel a reservation
+    - Directly resolve complaints as the primary task
+    - Provide detailed ingredient, allergen, or dietary safety claims beyond explicitly available information
+    - Invent unavailable items, prices, discounts, delivery times, preparation times, payment status, order status, or final confirmation details
+
+    The response may:
+    - Ask for missing order details
+    - Summarize the order before confirmation
+    - Acknowledge that the user also has menu, reservation, or complaint-related needs
+    - Briefly indicate that another agent can handle those next
+    - Pause order progression to allow routing when a different task becomes primary
 
     The response should:
     - Be structured and clear
     - Capture item names, quantities, options, and special requests accurately
-    - Ask for missing order details when needed
-    - Summarize the order before final confirmation
-    - Hand off to Menu Agent for detailed menu or allergen questions
-    - Hand off to Reservation Agent for reservation requests
-    - Hand off to Complaints Agent for dissatisfaction, refund, or wrong-item complaints
+    - Avoid prematurely finalizing an order without appropriate confirmation
+    - Route naturally when detailed menu questions, reservation requests, or complaints become the main issue
 
-    If the response invents order facts, skips necessary confirmation, or handles another agent’s role, return a reason for the tripwire.
+    If the response directly performs another agent’s core task or invents unsupported order facts, return a reason for the tripwire.
     """,
     output_type=TechnicalOutputGuardRailOutput,
 )
@@ -159,24 +169,28 @@ async def order_output_guardrail(
 reservation_output_guardrail_agent = Agent(
     name="Reservation Agent Guardrail",
     instructions="""
-    Ensure the Reservation Agent’s response only handles reservation-related tasks such as creating, modifying, canceling, or reviewing a restaurant reservation request.
+    Ensure the Reservation Agent’s response stays focused on reservation-related tasks such as creating, modifying, canceling, or reviewing a reservation request.
 
     The response must not:
-    - Answer detailed menu, ingredient, allergen, or recommendation questions beyond basic redirection
-    - Take or modify food orders
-    - Resolve complaints that belong to the Complaints Agent
+    - Directly place or modify a food order
+    - Directly resolve complaints as the primary task
+    - Provide detailed menu, ingredient, allergen, or recommendation support as the main task
     - Invent reservation availability, booking confirmation, wait times, seating guarantees, or special accommodations unless explicitly confirmed
-    - Confirm a reservation as completed unless that completion is actually known
+
+    The response may:
+    - Collect and confirm reservation request details such as date, time, party size, and name
+    - Distinguish between a reservation request and a confirmed reservation
+    - Acknowledge that the user also wants menu help, ordering, or complaint support
+    - Briefly indicate that another agent can help with the next step
+    - Continue reservation-related clarification while preserving the user’s broader intent
 
     The response should:
-    - Collect and confirm reservation details such as date, time, party size, and name
-    - Clearly distinguish between a reservation request and a confirmed reservation
-    - Ask short follow-up questions only for missing reservation details
-    - Hand off to Menu Agent for menu-related questions
-    - Hand off to Order Agent for food ordering
-    - Hand off to Complaints Agent for dissatisfaction related to service or reservation experience
+    - Be calm, clear, and efficient
+    - Ask only for necessary missing reservation details
+    - Avoid overstating certainty
+    - Route naturally when the user’s primary need becomes menu help, ordering, or complaint resolution
 
-    If the response makes unsupported reservation promises or performs another agent’s role, return a reason for the tripwire.
+    If the response directly performs another agent’s core task or makes unsupported reservation promises, return a reason for the tripwire.
     """,
     output_type=TechnicalOutputGuardRailOutput,
 )
@@ -209,24 +223,25 @@ async def reservation_output_guardrail(
 complaints_output_guardrail_agent = Agent(
     name="Complaints Agent Guardrail",
     instructions="""
-    Ensure the Complaints Agent’s response handles dissatisfied customers with empathy, professionalism, and appropriate caution.
+    Ensure the Complaints Agent’s response handles dissatisfaction with empathy, professionalism, and appropriate caution.
 
     The response must not:
     - Be dismissive, argumentative, sarcastic, blaming, or rude
     - Minimize the customer’s frustration
-    - Invent refund approvals, compensation, replacement approvals, manager decisions, policy outcomes, or case resolution status
-    - Take a new order, provide detailed menu consultation, or handle reservation booking unless only redirecting
-    - Escalate emotionally or mirror abusive language
+    - Invent refund approvals, compensation, replacement approvals, manager decisions, policy outcomes, or final resolution status
+    - Directly place a new order, complete a reservation, or provide detailed menu consultation as the primary task
+
+    The response may:
+    - Acknowledge the customer’s frustration first
+    - Ask for missing details when needed
+    - Suggest the next appropriate step such as review, escalation, follow-up, replacement request, or apology handling
+    - Briefly mention that another agent can help if the user also wants to order, reserve, or ask menu questions
+    - Transition to another agent after the complaint has been acknowledged or clarified
 
     The response should:
-    - Acknowledge the customer’s frustration first
-    - Use calm, respectful, solution-focused language
-    - Ask for missing details only when necessary
-    - Offer the next appropriate step, such as review, replacement request, escalation, or follow-up
-    - Clearly avoid making promises that are not confirmed
-    - Hand off to Menu Agent for menu questions
-    - Hand off to Order Agent for new orders or order changes
-    - Hand off to Reservation Agent for new reservation handling
+    - Be calm, respectful, and solution-focused
+    - Make the customer feel heard without overpromising outcomes
+    - Avoid emotional escalation even when the user is upset
 
     If the response is unempathetic, overly defensive, or makes unsupported promises, return a reason for the tripwire.
     """,

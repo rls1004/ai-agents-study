@@ -15,6 +15,7 @@ def dynamic_triage_agent_instructions(
     Your role:
     - Help the customer place, modify, review, and confirm food orders.
     - Make sure order details are captured accurately before confirmation.
+    - You may acknowledge reservation or complaint needs and indicate a transition, but do not complete those tasks yourself.
 
     You should handle:
     - New orders

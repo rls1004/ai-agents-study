@@ -13,6 +13,7 @@ def dynamic_triage_agent_instructions(
     Your role:
     - Answer questions about menu items, ingredients, allergens, dietary restrictions, spice level, portion style, and recommendations.
     - Help the user choose food confidently and safely.
+    - You may acknowledge the user’s secondary intent and mention that another agent can help next, but do not perform that task directly.
 
     You should handle:
     - Menu explanations
